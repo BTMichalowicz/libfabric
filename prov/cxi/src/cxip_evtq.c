@@ -16,6 +16,8 @@
 
 #define CXIP_DBG(...) _CXIP_DBG(FI_LOG_CQ, __VA_ARGS__)
 #define CXIP_WARN(...) _CXIP_WARN(FI_LOG_CQ, __VA_ARGS__)
+#define CXIP_INFO(...) _CXIP_INFO(FI_LOG_CQ, __VA_ARGS__)
+
 
 bool cxip_evtq_saturated(struct cxip_evtq *evtq)
 {
@@ -396,7 +398,9 @@ void cxip_evtq_progress(struct cxip_evtq *evtq, bool internal)
 		} else {
 
 			req = cxip_evtq_event_req(evtq, event);
+            CXIP_INFO("Req: %p\n", req);
 			if (req) {
+                CXIP_INFO("Callback function %p %p\n", req, event);
 				ret = req->cb(req, event);
 				if (ret != FI_SUCCESS)
 					break;

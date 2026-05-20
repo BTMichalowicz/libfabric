@@ -16,6 +16,7 @@
 
 #define CXIP_DBG(...) _CXIP_DBG(FI_LOG_EP_CTRL, __VA_ARGS__)
 #define CXIP_WARN(...) _CXIP_WARN(FI_LOG_EP_CTRL, __VA_ARGS__)
+#define CXIP_INFO(...) _CXIP_INFO(FI_LOG_EP_CTRL, __VA_ARGS__)
 #define	TRACE(fmt, ...)	CXIP_COLL_TRACE(CXIP_TRC_ZBCOLL, fmt, ##__VA_ARGS__)
 
 /*
@@ -381,12 +382,14 @@ void cxip_ep_ctrl_eq_progress(struct cxip_ep_obj *ep_obj,
 	while ((event = cxi_eq_peek_event(ctrl_evtq))) {
 		req = cxip_ep_ctrl_event_req(ep_obj, event);
 		if (req) {
+            CXIP_INFO("Calling callback with req %p and event %p\n", req, event);
 			ret = req->cb(req, event);
 			if (ret != FI_SUCCESS)
 				break;
 		}
 
 		/* Consume and ack event. */
+        CXIP_INFO("Event consumed and acked on eq %p\n", ctrl_evtq);
 		cxi_eq_next_event(ctrl_evtq);
 
 		cxi_eq_ack_events(ctrl_evtq);

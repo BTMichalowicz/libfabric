@@ -28,6 +28,8 @@
 
 #define CXIP_DBG(...) _CXIP_DBG(FI_LOG_AV, __VA_ARGS__)
 #define CXIP_WARN(...) _CXIP_WARN(FI_LOG_AV, __VA_ARGS__)
+#define CXIP_INFO(...) _CXIP_INFO(FI_LOG_AV, __VA_ARGS__)
+
 
 /*
  * cxip_parse_cxi_addr() - Parse node and service arguments representing a CXI
@@ -256,7 +258,11 @@ static int cxip_av_insert(struct fid_av *fid, const void *addr_in, size_t count,
 
 	cxip_av_write_lock(av);
 
+    CXIP_INFO("%s fi_addr available? %s\n", __func__, fi_addr ? "yes" : "no");
 	for (i = 0; i < count; i++) {
+        CXIP_INFO("%s idx %lu of count %lu for address %p with NIC 0x%x and PID 0x%x\n", 
+                __func__, i, count, cxip_av_addr_in(addr_in) + i,
+                ((struct cxip_addr*)(addr_in)+i)->nic, ((struct cxip_addr*)(addr_in)+i)->pid);
 		ret = cxip_av_insert_addr(av, cxip_av_addr_in(addr_in) + i,
 					  fi_addr ? &fi_addr[i] : NULL, flags);
 		if (ret == FI_SUCCESS)

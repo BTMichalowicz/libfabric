@@ -598,8 +598,8 @@ static inline
 int _get_cxi_data_bytcnt(cxip_coll_op_t cxi_opcode,
 			 enum fi_datatype datatype, size_t count)
 {
-	int size;
-
+	int size = -FI_EINVAL;
+    CXIP_INFO("Start: Count: %lu\n", count);
 	switch (datatype) {
 	case FI_INT8:
 	case FI_UINT8:
@@ -636,6 +636,7 @@ int _get_cxi_data_bytcnt(cxip_coll_op_t cxi_opcode,
 		// do nothing, size is correct
 		break;
 	}
+    CXIP_INFO("size: %d, count: %lu\n", size, count);
 	size *= count;
 	if (size > CXIP_COLL_MAX_DATA_SIZE)
 		return -FI_EINVAL;
@@ -4573,6 +4574,7 @@ static unsigned int _caddr_to_idx(struct cxip_av_set *av_set_obj,
 	size_t size = sizeof(addr);
 	int i, ret;
 
+    CXIP_INFO("Using cxip_addr reference: pid 0x%lx nic 0x%lx vni 0x%lx\n", caddr.pid, caddr.nic, caddr.vni);
 	for (i = 0; i < av_set_obj->fi_addr_cnt; i++) {
 		ret = fi_av_lookup(&av_set_obj->cxi_av->av_fid,
 				   av_set_obj->fi_addr_ary[i],
@@ -4583,6 +4585,8 @@ static unsigned int _caddr_to_idx(struct cxip_av_set *av_set_obj,
 				  i, av_set_obj->fi_addr_ary[i], ret);
 			return ret;
 		}
+        CXIP_INFO("Looked up addr reference: pid 0x%lx nic 0x%lx vni 0x%lx\n", addr.pid, addr.nic, addr.vni);
+
 		if (CXIP_ADDR_EQUAL(addr, caddr))
 			return i;
 	}
@@ -4807,6 +4811,7 @@ int cxip_join_collective(struct fid_ep *ep, fi_addr_t coll_addr,
 		jstate->create_mcast = false;
 		jstate->rx_discard = true;
 		link_zb = false;
+        CXIP_INFO("%s UNICAST setup: node_idx %d, fiaddr 0x%x, hwroot_idx: 0x%x mcast_addr: 0x%x jstate->mc dereference: 0x%lx, mc_obj %p\n", __func__, jstate->mynode_idx, jstate->mynode_fiaddr, jstate->bcast_data.hwroot_idx, jstate->bcast_data.mcast_addr, (uint64_t)(*(jstate->mc)), jstate->mc_obj);
 		break;
 	case COMM_KEY_RANK:
 		/* Single process simulation, can run under NETSIM */
@@ -4844,6 +4849,7 @@ int cxip_join_collective(struct fid_ep *ep, fi_addr_t coll_addr,
 				jstate->av_set_obj->fi_addr_cnt,
 				jstate->av_set_obj->fi_addr_ary,
 				jstate->simrank, &zb);
+    CXIP_INFO("ret post-zbcoll-alloc: %d ; jstate->mc dereference: 0x%lx, mc_obj %p\n", ret, (uint64_t)(*(jstate->mc)), jstate->mc_obj);
 	TRACE_JOIN("%s: returned=%d\n", __func__, ret);
 	if (ret) {
 		CXIP_WARN("ZB collective allocation failed: addr_cnt=%zu, "
@@ -4856,6 +4862,9 @@ int cxip_join_collective(struct fid_ep *ep, fi_addr_t coll_addr,
 	/* Install the callback function for zb collectives */
 	TRACE_JOIN("%s: cxip_zbcoll_set_user_cb\n", __func__);
 	cxip_zbcoll_set_user_cb(zb, _append_sched, jstate);
+
+
+    CXIP_INFO("post-zbcoll_set_user-cb jstate->mc dereference: 0x%lx, mc_obj %p\n", (uint64_t)(*(jstate->mc)), jstate->mc_obj);
 
 	/* If COMM_KEY_RANK, join is called for each rank */
 	if (link_zb) {
@@ -4896,6 +4905,8 @@ int cxip_join_collective(struct fid_ep *ep, fi_addr_t coll_addr,
 
 	jstate->zb = zb;
 	_append_sched(zb, jstate);
+
+    CXIP_INFO("exiting join_collective: jstate->mc dereference: 0x%lx mc_obj %p\n", (uint64_t)(*(jstate->mc)), jstate->mc_obj);
 
 	return FI_SUCCESS;
 
@@ -5045,6 +5056,7 @@ int cxip_coll_enable(struct cxip_ep *ep)
 		CXIP_INFO("FI_COLLECTIVE not requested\n");
 		return FI_SUCCESS;
 	}
+    CXIP_INFO("FI_COLLECTIVE requested\n");
 
 	/* A read-only or write-only endpoint is legal */
 	if (!(ofi_recv_allowed(ep_obj->rxc->attr.caps) &&

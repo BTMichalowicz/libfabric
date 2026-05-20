@@ -141,8 +141,6 @@ static void *_poll_cqs(void)
 		TRACE("  op_context    %p\n",cqd.op_context);
 		TRACE("  prov_errno    %d\n",cqd.prov_errno);
 		TRACE("  tag           %016lx\n",cqd.tag);
-
-        DBG_PRINT("returning non-NULL item %p\n", cqd.op_context);
 		return cqd.op_context;
 	}
 	if (size != -FI_EAGAIN)
@@ -253,8 +251,6 @@ int avset_ary_append(fi_addr_t *fiaddrs, size_t size,
 	}
 	// append addresses to av_set
 	for (i = 0; i < size; i++) {
-        DBG_PRINT("Inserting at index %d of %d into setp %p at addr 0x%lx\n",
-                i, size, setp, fiaddrs[i]);
 		ret = fi_av_set_insert(setp, fiaddrs[i]);
 		if (ret) {
 			TRACE("%s fi_av_set_insert failed %d\n", __func__, ret);
@@ -361,7 +357,6 @@ static int _poll_eq(void)
 		}
 		TRACE("=== EQ SUCCESS\n");
 		jctx = eqd.context;
-        DBG_PRINT("simple response: eqd.context: %p\n", jctx);
 		jctx->retval = 0;
 		jctx->prov_errno = 0;
 		return FI_SUCCESS;
@@ -389,8 +384,6 @@ static int _poll_eq(void)
 			return -FI_EINVAL;
 		}
 		jctx = eqd.context;
-
-        DBG_PRINT("2nd round (og ret was -FI_EAVAIL): eqd.context: %p\n", jctx);
 		jctx->retval = eqd.err;
 		jctx->prov_errno = eqd.prov_errno;
 		return FI_SUCCESS;
@@ -467,8 +460,6 @@ int coll_multi_join(struct avset_ary *setary, struct dlist_entry *joinlist,
 		TRACE("join %d of %d initiating\n", i, total);
 		ret = fi_join_collective(cxit_ep, FI_ADDR_NOTAVAIL,
 					 setary->avset[i], 0L, &jctx->mc, jctx);
-
-        DBG_PRINT("post-join mc: 0x%lx\n", jctx->mc);
 		/* node is not participating in this join */
 		if (ret == -FI_ECONNREFUSED) {
 			free(jctx);
@@ -480,7 +471,6 @@ int coll_multi_join(struct avset_ary *setary, struct dlist_entry *joinlist,
 			goto fail;
 		}
 		/* wait for join to complete */
-        DBG_PRINT("Starting to poll for joins to complete\n");
 		do {
 			_poll_cqs();
 			ret = _poll_eq();
@@ -605,7 +595,6 @@ uint64_t _simple_get_mc(struct dlist_entry *joinlist)
 		TRACE("Join item is NULL\n");
 		return 0;
 	}
-    DBG_PRINT("mc: 0x%lx\n", (uint64_t)jctx->mc);
 	return (uint64_t)jctx->mc;
 }
 
@@ -638,7 +627,6 @@ int _test_barrier(fi_addr_t *fiaddrs, size_t size, int count,
 		TRACE("BARRIER MC invalid\n");
 		goto quit;
 	}
-    DBG_PRINT("mc: 0x%lx\n", mc);
 	for (i = 0; i < count; i++) {
 		do {
 			usleep(rand() % 100);
@@ -670,14 +658,10 @@ int _test_broadcast(fi_addr_t *fiaddrs, size_t size, int count,
 {
 	struct avset_ary setary;
 	struct dlist_entry joinlist;
-	uint64_t *data;//[4], 
-    uint64_t *rslt;
+	uint64_t data[4], rslt[4];
 	uint64_t context;
-    struct timespec start, end;
-    double elapsed;
 	uint64_t mc;
 	int i, root, ret;
-    int chunk_elems = 4;
 
 	TRACE("%s entry, create_mcast=%d\n", __func__, create_multicast);
 
@@ -693,113 +677,6 @@ int _test_broadcast(fi_addr_t *fiaddrs, size_t size, int count,
 		ret = -1;
 		goto quit;
 	}
-    char *s = getenv("FI_CXI_BENCHMARK_MAX_CNT");
-	int max_cnt = s ? atoi(s) : 0;
-	s = getenv("FI_CXI_BENCHMARK_MAX_ITER");
-    count = s ? atoi(s) : 0;
-
-    int warmup_cnt = 400;
-    int off = 0;
-    int cnt = 0;
-    int v = 0;
-
-    for (cnt = 1; cnt <= max_cnt; cnt*=2){
-        data = calloc(cnt, sizeof(uint64_t));
-        rslt = calloc(cnt, sizeof(uint64_t));
-
-        if (!data || !rslt){
-            fprintf(stderr, "CALLOC_FAILED\n");
-            ret = -1;
-            goto quit;
-        }
-        memset(data, 0, cnt * sizeof(uint64_t));
-        memset(rslt, 0, cnt * sizeof(uint64_t));
-
-        for (v = 0; v< cnt; v++){
-            data[v] = 0xdeadbeef;
-        }
-
-        /* Warmup time! */
-   /*     frmwk_barrier();
-        for (i = 0; i < warmup_cnt; i++){
-            for (off = 0; off < count; off += chunk_elems) {
-                int cur_count = cnt - off;
-                if (cur_count > chunk_elems)
-                    cur_count = chunk_elems;
-
-                for (root = 0; root < size; root++){
-                    if (frmwk_rank == root){
-                        memcpy(rslt, data, cnt * sizeof(uint64_t));
-                    }
-
-
-                    do {
-                        _poll_cqs();
-                        ret = fi_broadcast(cxit_ep, rslt, cnt, NULL, mc,
-                                fiaddrs[root], FI_UINT64, 0L, &context);
-                    } while (ret == -FI_EAGAIN);
-                    if (ret) goto quit;
-
-                    _wait_cqs(&context);
-
-
-                } 
-            }
-        }
-
-        memset(rslt, 0, cnt * sizeof(uint64_t));*/
-        frmwk_barrier();
-        /* Benchmark time ! */
-
-        root = 0;
-        clock_gettime(CLOCK_MONOTONIC, &start);
-        for (i = 0; i < count; i++){
-            for(off = 0; off < cnt; off += chunk_elems) {
-                int cur_count = cnt - off;
-                if (cur_count > chunk_elems)
-                    cur_count = chunk_elems;
-
-              //  for (root = 0; root < size; root++){
-                    if (frmwk_rank == root){
-                        memcpy(rslt, data, cnt * sizeof(uint64_t));
-                    }
-
-
-                    do {
-                        _poll_cqs();
-                        ret = fi_broadcast(cxit_ep, rslt, cnt, NULL, mc,
-                                fiaddrs[root], FI_UINT64, 0L, &context);
-                    } while (ret == -FI_EAGAIN);
-                    if (ret) goto quit;
-
-               // }
-            }
-        }
-        frmwk_barrier();
-        clock_gettime(CLOCK_MONOTONIC, &end);
-
-        elapsed = (end.tv_sec - start.tv_sec)*1e9 + (end.tv_nsec - start.tv_nsec);
-        if (frmwk_rank == 0)
-            fprintf(stdout, "%10ld %10.3f \n", cnt * sizeof(int64_t), elapsed/1e3/count);
-
-
-
-
-        if (memcmp(rslt, data, sizeof(int64_t))) {
-            for (v = 0; v < cnt; v++)
-                TRACE("[%d] %016lx exp %016lx\n",
-                        v, rslt[v], data[v]);
-            ret = -1;
-        }
-
-        if (data) free(data);
-        if (rslt) free(rslt);
-
-    }
-
-
-
-/*
 
 	for (i = 0; i < count; i++) {
 		for (root = 0; root < size; root++) {
@@ -830,7 +707,6 @@ int _test_broadcast(fi_addr_t *fiaddrs, size_t size, int count,
 			}
 		}
 	}
-    */
 
 quit:
 	TRACE("BROADCAST exit\n");
@@ -839,204 +715,6 @@ quit:
 	_simple_join_release(&setary, &joinlist);
 	return ret;
 }
-
-/* wait for multiple collective op completions (unordered) */
-static int _wait_cqs_batch(void **contexts, int nctx)
-{
-    int done = 0;
-    int i;
-    bool seen[8] = { false };
-
-    while (done < nctx) {
-        void *got = _poll_cqs();
-        if (!got)
-            continue;
-
-        for (i = 0; i < nctx; i++) {
-            if (!seen[i] && got == contexts[i]) {
-                seen[i] = true;
-                done++;
-                break;
-            }
-        }
-    }
-
-    return 0;
-}
-
-/* Simple test of count broadcasts, returns a count of errors. */
-int _test_broadcast_improved_chunks(fi_addr_t *fiaddrs, size_t size, int count,
-		    struct cxip_coll_metrics *metrics)
-{
-	struct avset_ary setary;
-	struct dlist_entry joinlist;
-	uint64_t *data;//[4], 
-    uint64_t *rslt;
-	uint64_t context;
-    struct timespec start, end;
-    double elapsed;
-	uint64_t mc;
-	int i, root, ret;
-    const int chunk_elems = 4;
-    const int max_inflight = 8;
-
-
-	TRACE("%s entry, create_mcast=%d\n", __func__, create_multicast);
-
-	ret = _simple_join(fiaddrs, size, &setary, &joinlist);
-	if (ret) {
-		TRACE("join failed\n");
-		goto quit;
-	}
-
-    mc = _simple_get_mc(&joinlist);
-    DBG_PRINT("mc: 0x%lx\n", mc);
-
-    if (!mc) {
-        TRACE("BARRIER MC invalid\n");
-        ret = -1;
-        goto quit;
-    }
-
-
-    char *s = getenv("FI_CXI_BENCHMARK_MAX_CNT");
-    int max_cnt = s ? atoi(s) : 4;
-    s = getenv("FI_CXI_BENCHMARK_MAX_ITER");
-    count = s ? atoi(s) : 0;
-
-    int warmup_cnt = 400;
-    int off = 0;
-    int cnt = 0;
-    int v = 0;
-
-    s = getenv("FI_CXI_BENCHMARK_MIN_CNT");
-    int min_cnt = s ? atoi(s): 1;
-
-    for (cnt = min_cnt; cnt <= max_cnt; cnt*=2){
-        data = calloc(cnt, sizeof(uint64_t));
-        rslt = calloc(cnt, sizeof(uint64_t));
-
-        if (!data || !rslt){
-            fprintf(stderr, "CALLOC_FAILED\n");
-            ret = -1;
-            goto quit;
-        }
-        memset(data, 0, cnt * sizeof(uint64_t));
-        memset(rslt, 0, cnt * sizeof(uint64_t));
-
-        for (v = 0; v< cnt; v++){
-            data[v] = 0x12345678;
-        }
-        frmwk_barrier();
-        /* Benchmark time ! */
-
-        clock_gettime(CLOCK_MONOTONIC, &start);
-        int cur_count = 0;
-        root = 0;
-        for (i = 0; i < count; i++){
-            uint64_t ctx[max_inflight];
-            void    *ctx_ptrs[max_inflight];
-
-            off = 0;
-            int posted = 0;
-            while(off < cnt) {
-                posted = 0;
-                while (posted < max_inflight && off < cnt){
-                    cur_count = cnt - off;
-                    if (cur_count > chunk_elems) 
-                        cur_count = chunk_elems;
-
-                    ctx_ptrs[posted] = &ctx[posted];
-                    if (frmwk_rank == root){
-                        memcpy(rslt, data, cnt * sizeof(uint64_t));
-                    }
-       
-                    ret = fi_broadcast(cxit_ep, &rslt[off], cur_count, NULL,
-                            mc, fiaddrs[root], FI_UINT64, 0L, ctx_ptrs[posted]);
-
-                    if (ret == -FI_EAGAIN){
-                        if (posted > 0){
-                            _wait_cqs_batch(ctx_ptrs, posted);
-                            posted = 0;
-                            continue;
-                        }
-                        do {
-                        } while(_poll_cqs() == NULL);
-                        continue;
-                    }
-                    if (ret) {
-                        goto quit;
-                    }
-
-                    off += cur_count;
-                    posted++;
-                }
-                if (posted > 0){ _wait_cqs_batch(ctx_ptrs, posted); }
-            }
-        }
-
-
-        frmwk_barrier();
-        clock_gettime(CLOCK_MONOTONIC, &end);
-
-        elapsed = (end.tv_sec - start.tv_sec)*1e9 + (end.tv_nsec - start.tv_nsec);
-        if (frmwk_rank == 0)
-            fprintf(stdout, "%10ld %10.3f \n", cnt * sizeof(int64_t), elapsed/1e3/count);
-
-        if (memcmp(rslt, data, sizeof(int64_t))) {
-            for (v = 0; v < cnt; v++)
-                fprintf(stderr, "[rank_%d][%d] %016lx exp %016lx\n",frmwk_rank,
-                        v, rslt[v], data[v]);
-            ret = -1;
-            goto quit;
-        }
-
-        if (data) free(data);
-        if (rslt) free(rslt);
-
-    }
-
-/*
-
-	for (i = 0; i < count; i++) {
-		for (root = 0; root < size; root++) {
-			data[0] = i;
-			data[1] = root;
-			data[2] = 0x13579bdf;
-			data[3] = 0x10101010;
-			memset(rslt, 0, sizeof(rslt));
-			if (frmwk_rank == root)
-				memcpy(rslt, data, sizeof(rslt));
-			do {
-				_poll_cqs();
-				ret = fi_broadcast(cxit_ep, rslt, 4, NULL, mc,
-						   fiaddrs[root], FI_UINT64, 0L,
-						   &context);
-			} while (ret == -FI_EAGAIN);
-			if (ret)
-				goto quit;
-
-			TRACE("spin 1...\n");
-			_wait_cqs(&context);
-			TRACE("BROADCAST COMPLETE\n");
-			if (memcmp(rslt, data, sizeof(rslt))) {
-				for (i = 0; i < 4; i++)
-					TRACE("[%d] %016lx exp %016lx\n",
-						i, rslt[i], data[i]);
-				ret = -1;
-			}
-		}
-	}
-    */
-
-quit:
-	TRACE("BROADCAST exit\n");
-	if (metrics)
-		cxip_coll_get_metrics(metrics);
-	_simple_join_release(&setary, &joinlist);
-	return ret;
-}
-
 
 const struct timespec usec1 = {.tv_sec = 0, .tv_nsec = 10000};
 
@@ -1068,28 +746,22 @@ int _test_allreduce_isum(fi_addr_t *fiaddrs, size_t size, int count,
 	if (_is_hwroot(_get_join_jctx(&joinlist, 0)))
 		nanosleep(&usec1, NULL);
 
-	char *s;
-	int cnt;
-	s = getenv("FI_CXI_BENCHMARK_CNT");
-	cnt = s ? atoi(s) : 0;
-    fprintf(stderr, "cnt: %d\n", cnt);
-
-	data = calloc(frmwk_numranks*cnt, sizeof(int64_t));
-	comp = calloc(cnt, sizeof(int64_t));
-	rslt = calloc(cnt, sizeof(int64_t));
+	data = calloc(frmwk_numranks*4, sizeof(int64_t));
+	comp = calloc(4, sizeof(int64_t));
+	rslt = calloc(4, sizeof(int64_t));
 	for (i = 0; i < count; i++) {
-		memset(data, 0, frmwk_numranks * cnt * sizeof(int64_t));
-		memset(comp, 0, cnt * sizeof(int64_t));
-		memset(rslt, 0, cnt * sizeof(int64_t));
-		for (v = 0; v < cnt; v++)
+		memset(data, 0, frmwk_numranks * 4 * sizeof(int64_t));
+		memset(comp, 0, 4 * sizeof(int64_t));
+		memset(rslt, 0, 4 * sizeof(int64_t));
+		for (v = 0; v < 4; v++)
 			for (r = 0; r < frmwk_numranks; r++)
-				data[cnt*r + v] = cnt*r  + v;
-		for (v = 0; v < cnt; v++)
+				data[4*r + v] = 4*r  + v;
+		for (v = 0; v < 4; v++)
 			for (r = 0; r < frmwk_numranks; r++)
-				comp[v] += data[cnt*r + v];
+				comp[v] += data[4*r + v];
 		do {
 			_poll_cqs();
-			ret = fi_allreduce(cxit_ep, &data[frmwk_rank*cnt], cnt, NULL,
+			ret = fi_allreduce(cxit_ep, &data[frmwk_rank*4], 4, NULL,
 					   rslt, NULL, mc, FI_INT64,
 					   FI_SUM, 0L, &context);
 		} while (ret == -FI_EAGAIN);
@@ -1099,7 +771,7 @@ int _test_allreduce_isum(fi_addr_t *fiaddrs, size_t size, int count,
 		TRACE("spin...\n");
 		_wait_cqs(&context);
 		TRACE("ALLREDUCE COMPLETE\n");
-		for (v = 0; v < cnt; v++) {
+		for (v = 0; v < 4; v++) {
 			if (rslt[v] != comp[v]) {
 				TRACE("[%d] %016lx exp %016lx\n",
 					v, rslt[v], comp[v]);
@@ -1110,390 +782,6 @@ int _test_allreduce_isum(fi_addr_t *fiaddrs, size_t size, int count,
 	free(rslt);
 	free(comp);
 	free(data);
-
-quit:
-	TRACE("ALLREDUCE exit\n");
-	if (metrics)
-		cxip_coll_get_metrics(metrics);
-	_simple_join_release(&setary, &joinlist);
-	return ret;
-}
-
-int _test_allreduce_isum_chunk(fi_addr_t *fiaddrs, size_t size, int count,
-							   struct cxip_coll_metrics *metrics)
-{
-	struct avset_ary setary;
-	struct dlist_entry joinlist;
-	int64_t *data = NULL, *rslt = NULL, *comp = NULL;
-	uint64_t context;
-	uint64_t mc;
-	int i, r, v, ret = 0;
-	const int chunk_elems = 4;
-
-	TRACE("%s entry, create_mcast=%d\n", __func__, create_multicast);
-
-	ret = _simple_join(fiaddrs, size, &setary, &joinlist);
-	if (ret) {
-		TRACE("join failed\n");
-		goto quit;
-	}
-
-	mc = _simple_get_mc(&joinlist);
-	if (!mc) {
-		TRACE("ALLREDUCE MC invalid\n");
-		ret = -1;
-		goto quit;
-	}
-
-	if (_is_hwroot(_get_join_jctx(&joinlist, 0)))
-		nanosleep(&usec1, NULL);
-
-	{
-		char *s;
-		int cnt;
-		s = getenv("FI_CXI_BENCHMARK_CNT");
-		cnt = s ? atoi(s) : 0;
-		fprintf(stderr, "cnt: %d\n", cnt);
-
-		if (cnt <= 0) {
-			TRACE("invalid cnt=%d\n", cnt);
-			ret = -1;
-			goto quit;
-		}
-
-		data = calloc(frmwk_numranks * cnt, sizeof(int64_t));
-		comp = calloc(cnt, sizeof(int64_t));
-		rslt = calloc(cnt, sizeof(int64_t));
-		if (!data || !comp || !rslt) {
-			TRACE("calloc failed\n");
-			ret = -1;
-			goto quit;
-		}
-
-		for (i = 0; i < count; i++) {
-			int off;
-
-			memset(data, 0, frmwk_numranks * cnt * sizeof(int64_t));
-			memset(comp, 0, cnt * sizeof(int64_t));
-			memset(rslt, 0, cnt * sizeof(int64_t));
-
-			for (v = 0; v < cnt; v++)
-				for (r = 0; r < frmwk_numranks; r++)
-					data[cnt * r + v] = cnt * r + v;
-			for (v = 0; v < cnt; v++)
-				for (r = 0; r < frmwk_numranks; r++)
-					comp[v] += data[cnt * r + v];
-
-			for (off = 0; off < cnt; off += chunk_elems) {
-				int this_cnt = cnt - off;
-				if (this_cnt > chunk_elems)
-					this_cnt = chunk_elems;
-
-				TRACE("chunk allreduce off=%d this_cnt=%d\n", off, this_cnt);
-
-				do {
-					_poll_cqs();
-					ret = fi_allreduce(cxit_ep, &data[frmwk_rank * cnt + off], this_cnt, NULL,
-									   &rslt[off], NULL, mc, FI_INT64, FI_SUM, 0L, &context);
-				} while (ret == -FI_EAGAIN);
-
-				if (ret) {
-					TRACE("fi_allreduce failed off=%d this_cnt=%d ret=%d\n", off, this_cnt, ret);
-					goto quit;
-				}
-				TRACE("spin chunk...\n");
-				_wait_cqs(&context);
-				TRACE("ALLREDUCE CHUNK COMPLETE off=%d this_cnt=%d\n", off, this_cnt);
-			}
-
-			for (v = 0; v < cnt; v++) {
-				if (rslt[v] != comp[v]) {
-					TRACE("[%d] %016lx exp %016lx\n", v, rslt[v], comp[v]);
-					ret = 1;
-				}
-			}
-		}
-	}
-	quit:
-		if (rslt)
-			free(rslt);
-		if (comp)
-			free(comp);
-		if (data)
-			free(data);
-		
-		TRACE("ALLREDUCE exit\n");
-		if (metrics)
-			cxip_coll_get_metrics(metrics);
-		_simple_join_release(&setary, &joinlist);
-		return ret;
-}
-
-int _test_allreduce_isum_chunk_benchmark(fi_addr_t *fiaddrs, size_t size, int count,
-							   			 struct cxip_coll_metrics *metrics)
-{
-	struct avset_ary setary;
-	struct dlist_entry joinlist;
-	int64_t *data = NULL, *rslt = NULL, *comp = NULL;
-	uint64_t context;
-	uint64_t mc;
-	int i, r, v, ret = 0;
-	const int chunk_elems = 4;
-
-	int cnt, max_cnt, iter, max_iter;
-	struct timespec start, end;
-	double elapsed;
-
-	char *s;
-	s = getenv("FI_CXI_BENCHMARK_MAX_CNT");
-	max_cnt = s ? atoi(s) : 0;
-
-	s = getenv("FI_CXI_BENCHMARK_MAX_ITER");
-	max_iter = s ? atoi(s) : 0;
-
-	TRACE("%s entry, create_mcast=%d\n", __func__, create_multicast);
-
-	ret = _simple_join(fiaddrs, size, &setary, &joinlist);
-	if (ret) {
-		TRACE("join failed\n");
-		goto quit;
-	}
-
-	mc = _simple_get_mc(&joinlist);
-	if (!mc) {
-		TRACE("ALLREDUCE MC invalid\n");
-		ret = -1;
-		goto quit;
-	}
-
-	if (_is_hwroot(_get_join_jctx(&joinlist, 0)))
-		nanosleep(&usec1, NULL);
-	
-	for (cnt = 1; cnt <= max_cnt; cnt *= 2)
-	{
-		data = calloc(frmwk_numranks * cnt, sizeof(int64_t));
-		comp = calloc(cnt, sizeof(int64_t));
-		rslt = calloc(cnt, sizeof(int64_t));
-		if (!data || !comp || !rslt) {
-			TRACE("calloc failed\n");
-			ret = -1;
-			goto quit;
-		}
-
-		int off;
-
-		memset(data, 0, frmwk_numranks * cnt * sizeof(int64_t));
-		memset(comp, 0, cnt * sizeof(int64_t));
-		memset(rslt, 0, cnt * sizeof(int64_t));
-
-		for (v = 0; v < cnt; v++)
-			for (r = 0; r < frmwk_numranks; r++)
-				data[cnt * r + v] = cnt * r + v;
-		for (v = 0; v < cnt; v++)
-			for (r = 0; r < frmwk_numranks; r++)
-				comp[v] += data[cnt * r + v];
-
-		// Warmup-phase
-		frmwk_barrier();
-		for (iter = 0; iter < 100; iter++) {
-			for (off = 0; off < cnt; off += chunk_elems) {
-				int this_cnt = cnt - off;
-				if (this_cnt > chunk_elems)
-					this_cnt = chunk_elems;
-
-				TRACE("chunk allreduce off=%d this_cnt=%d\n", off, this_cnt);
-
-				do {
-					_poll_cqs();
-					ret = fi_allreduce(cxit_ep, &data[frmwk_rank * cnt + off], this_cnt, NULL,
-										&rslt[off], NULL, mc, FI_INT64, FI_SUM, 0L, &context);
-				} while (ret == -FI_EAGAIN);
-
-				if (ret) {
-					TRACE("fi_allreduce failed off=%d this_cnt=%d ret=%d\n", off, this_cnt, ret);
-					goto quit;
-				}
-				TRACE("spin chunk...\n");
-				_wait_cqs(&context);
-				TRACE("ALLREDUCE CHUNK COMPLETE off=%d this_cnt=%d\n", off, this_cnt);
-			}
-		}
-
-		// Benchmark-phase
-		frmwk_barrier();
-		clock_gettime(CLOCK_MONOTONIC, &start);
-		for (iter = 0; iter < max_iter; iter++) {
-			for (off = 0; off < cnt; off += chunk_elems) {
-				int this_cnt = cnt - off;
-				if (this_cnt > chunk_elems)
-					this_cnt = chunk_elems;
-
-				TRACE("chunk allreduce off=%d this_cnt=%d\n", off, this_cnt);
-
-				do {
-					_poll_cqs();
-					ret = fi_allreduce(cxit_ep, &data[frmwk_rank * cnt + off], this_cnt, NULL,
-										&rslt[off], NULL, mc, FI_INT64, FI_SUM, 0L, &context);
-				} while (ret == -FI_EAGAIN);
-
-				if (ret) {
-					TRACE("fi_allreduce failed off=%d this_cnt=%d ret=%d\n", off, this_cnt, ret);
-					goto quit;
-				}
-				TRACE("spin chunk...\n");
-				_wait_cqs(&context);
-				TRACE("ALLREDUCE CHUNK COMPLETE off=%d this_cnt=%d\n", off, this_cnt);
-			}
-		}
-		frmwk_barrier();
-		clock_gettime(CLOCK_MONOTONIC, &end);
-
-		elapsed = (end.tv_sec - start.tv_sec)*1e9 + (end.tv_nsec - start.tv_nsec);
-		if (frmwk_rank == 0)
-			fprintf(stdout, "%10ld %10.3f \n", cnt * sizeof(int64_t), elapsed/1e3/max_iter);
-
-		for (v = 0; v < cnt; v++) {
-			if (rslt[v] != comp[v]) {
-				TRACE("[%d] %016lx exp %016lx\n", v, rslt[v], comp[v]);
-				ret = 1;
-			}
-		}
-
-		if (rslt)
-			free(rslt);
-		if (comp)
-			free(comp);
-		if (data)
-			free(data);
-	}
-	quit:
-		TRACE("ALLREDUCE exit\n");
-		if (metrics)
-			cxip_coll_get_metrics(metrics);
-		_simple_join_release(&setary, &joinlist);
-		return ret;
-}
-
-/* simple test of count allreduce int sums, returns a count of errors. */
-int _test_allreduce_isum_benchmark(fi_addr_t *fiaddrs, size_t size, int count,
-			 struct cxip_coll_metrics *metrics)
-{
-	struct avset_ary setary;
-	struct dlist_entry joinlist;
-	int64_t *data, *rslt, *comp;
-	uint64_t context;
-	uint64_t mc;
-	int i, r, v, ret;
-
-	//////////////////////
-	// Benchmark Code 1 //
-	//////////////////////
-	int cnt, max_cnt, iter, max_iter;
-	struct timespec start, end;
-	double elapsed;
-	// max_cnt = 1;
-	char *s;
-	s = getenv("FI_CXI_BENCHMARK_MAX_CNT");
-	max_cnt = s ? atoi(s) : 0;
-    fprintf(stderr, "max_cnt: %d\n", max_cnt);
-	// max_count = 8 * 1024 * 1024 / sizeof(int64_t);
-	// max_iter = 1;
-	s = getenv("FI_CXI_BENCHMARK_MAX_ITER");
-	max_iter = s ? atoi(s) : 0;
-	fprintf(stderr, "max_iter: %d\n", max_iter);
-
-
-	TRACE("%s entry, create_mcast=%d\n", __func__, create_multicast);
-
-	ret = _simple_join(fiaddrs, size, &setary, &joinlist);
-	if (ret) {
-		TRACE("join failed\n");
-		goto quit;
-	}
-
-	mc = _simple_get_mc(&joinlist);
-	if (!mc) {
-		TRACE("ALLREDUCE MC invalid\n");
-		ret = -1;
-		goto quit;
-	}
-	if (_is_hwroot(_get_join_jctx(&joinlist, 0)))
-		nanosleep(&usec1, NULL);
-
-	//////////////////////
-	// Benchmark Code 2 //
-	//////////////////////
-	for (cnt = 1; cnt <= max_cnt; cnt *= 2) {
-		data = calloc(frmwk_numranks*cnt, sizeof(int64_t));
-		comp = calloc(cnt, sizeof(int64_t));
-		rslt = calloc(cnt, sizeof(int64_t));
-
-		memset(data, 0, frmwk_numranks * cnt * sizeof(int64_t));
-		memset(comp, 0, cnt * sizeof(int64_t));
-		memset(rslt, 0, cnt * sizeof(int64_t));
-		
-		for (v = 0; v < cnt; v++)
-			for (r = 0; r < frmwk_numranks; r++)
-				data[cnt*r + v] = cnt*r  + v;
-		for (v = 0; v < cnt; v++)
-			for (r = 0; r < frmwk_numranks; r++)
-				comp[v] += data[cnt*r + v];
-
-		// Warm-up phase
-		frmwk_barrier();
-		for (iter = 0; iter < 20; iter++) {
-			do {
-				_poll_cqs();
-				ret = fi_allreduce(cxit_ep, &data[frmwk_rank*cnt], cnt, NULL,
-						rslt, NULL, mc, FI_INT64,
-						FI_SUM, 0L, &context);
-			} while (ret == -FI_EAGAIN);
-			if (ret) {
-				fprintf(stderr, "fi_allreduce_failed\n");
-				goto quit;
-			}
-			TRACE("spin...\n");
-			_wait_cqs(&context);
-			TRACE("ALLREDUCE COMPLETE\n");
-		}
-
-		// Benchmark-phase
-		frmwk_barrier();
-		clock_gettime(CLOCK_MONOTONIC, &start);
-		for (iter = 0; iter < max_iter; iter++) {
-			do {
-				_poll_cqs();
-				ret = fi_allreduce(cxit_ep, &data[frmwk_rank*cnt], cnt, NULL,
-						rslt, NULL, mc, FI_INT64,
-						FI_SUM, 0L, &context);
-			} while (ret == -FI_EAGAIN);
-			if (ret) {
-				fprintf(stderr, "fi_allreduce_failed\n");
-				goto quit;
-			}
-			TRACE("spin...\n");
-			_wait_cqs(&context);
-			TRACE("ALLREDUCE COMPLETE\n");
-		}
-		frmwk_barrier();
-		clock_gettime(CLOCK_MONOTONIC, &end);
-
-		for (v = 0; v < cnt; v++) {
-			if (rslt[v] != comp[v]) {
-				TRACE("[%d] %016lx exp %016lx\n",
-					v, rslt[v], comp[v]);
-				ret = 1;
-			}
-		}
-		elapsed = (end.tv_sec - start.tv_sec)*1e9 + (end.tv_nsec - start.tv_nsec);
-		if (frmwk_rank == 0)
-			fprintf(stdout, "%10ld %10.3f \n", cnt * sizeof(int64_t), elapsed/1e3/max_iter);
-
-
-		free(rslt);
-		free(comp);
-		free(data);
-	}
 
 quit:
 	TRACE("ALLREDUCE exit\n");
@@ -1752,8 +1040,6 @@ int main(int argc, char **argv)
 			goto done;
 
 		TRACE("numranks=%2d rank=%2d fiaddr=%ld caddr=%05x\n",
-                frmwk_numranks, frmwk_rank, myaddr, mycaddr.nic);
-        DBG_PRINT("numranks=%2d rank=%2d fiaddr=%ld caddr=%05x\n",
 		      frmwk_numranks, frmwk_rank, myaddr, mycaddr.nic);
 	} while (0);
 	if (errcnt)
@@ -1996,25 +1282,6 @@ int main(int argc, char **argv)
 	} while (0);
 	tstnum++;
 
-	do {
-		PREAMBLE(0, tstnum, "perform broadcast enhanced x opcount (default 1)");
-		ret = _test_broadcast_improved_chunks(fiaddrs, size, opcount, &metrics);
-		errcnt += !!ret;
-		tstcnt += 1;
-		fprintf(stdout,
-			"reductions [%2d] %s "
-			"bad: %-4ld full:%-4ld part:%-4ld none:%-4ld\n",
-			metrics.ep_data.myrank,
-			metrics.ep_data.isroot ? "root" : "leaf",
-			metrics.red_count_bad,
-			metrics.red_count_full,
-			metrics.red_count_partial,
-			metrics.red_count_unreduced);
-		frmwk_barrier();
-		frmwk_log0("%4s\n", STDMSG(ret));
-	} while (0);
-	tstnum++;
-
 	/* Test opcount int64 sum reductions
 	 */
 	do {
@@ -2032,32 +1299,6 @@ int main(int argc, char **argv)
 			metrics.red_count_full,
 			metrics.red_count_partial,
 			metrics.red_count_unreduced);
-		frmwk_barrier();
-		frmwk_log0("%4s\n", STDMSG(ret));
-	} while (0);
-	tstnum++;
-
-	/* Chunking Benchmark opcount int64 sum reductions
-	 */
-	do {
-		PREAMBLE(0, tstnum, "perform allreduce chunking benchmark int64 sum x opcount (default 1)");
-		ret = _test_allreduce_isum_chunk(fiaddrs, size, opcount, &metrics);
-		TRACE("allreduce ret = %d\n", ret);
-		errcnt += !!ret;
-		tstcnt += 1;
-		frmwk_barrier();
-		frmwk_log0("%4s\n", STDMSG(ret));
-	} while (0);
-	tstnum++;
-
-	/* Benchmark opcount int64 sum reductions
-	 */
-	do {
-		PREAMBLE(0, tstnum, "perform allreduce benchmark int64 sum x opcount (default 1)");
-		ret = _test_allreduce_isum_chunk_benchmark(fiaddrs, size, opcount, &metrics);
-		TRACE("allreduce ret = %d\n", ret);
-		errcnt += !!ret;
-		tstcnt += 1;
 		frmwk_barrier();
 		frmwk_log0("%4s\n", STDMSG(ret));
 	} while (0);

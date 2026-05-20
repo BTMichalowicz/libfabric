@@ -1246,6 +1246,8 @@ static int zbdata_send_cb(struct cxip_ctrl_req *req, const union c_event *event)
 	uint64_t dat;
 	int ret;
 
+    CXIP_INFO("req: %p, event %p\n", req, event);
+
 	sim = zbunpack(req->send.mb.zb_data, &src, &dst, &grpid, &dat);
 	TRACE("ACK sim=%d %d->%d grp=%d dat=%016lx\n",
 	    sim, src, dst, grpid, dat);
@@ -1270,10 +1272,15 @@ static int zbdata_send_cb(struct cxip_ctrl_req *req, const union c_event *event)
 	}
 	zbs = &zb->state[dst];
 
+    CXIP_INFO("event_type: %d (EVENT ACK: %d)\n", event->hdr.event_type, C_EVENT_ACK);
 	switch (event->hdr.event_type) {
 	case C_EVENT_ACK:
+        CXIP_INFO("cxi_event_rc(event): %d (OK %d, NOT_FOUND %d, retry %d)\n",
+                cxi_event_rc(event), C_RC_OK, C_RC_ENTRY_NOT_FOUND,
+                C_RC_PTLTE_NOT_FOUND);
 		switch (cxi_event_rc(event)) {
 		case C_RC_OK:
+            CXIP_WARN("OK EVENT\n");
 			ret = FI_SUCCESS;
 			free(req);
 			break;
@@ -1298,14 +1305,17 @@ static int zbdata_send_cb(struct cxip_ctrl_req *req, const union c_event *event)
 		break;
 	default:
 		/* fail the send */
+        CXIP_INFO("Failed send\n");
 		CXIP_WARN(CXIP_UNEXPECTED_EVENT,
 			  cxi_event_to_str(event),
 			  cxi_rc_to_str(cxi_event_rc(event)));
 		ret = -FI_EIO;
 		break;
 	}
-	if (ret != FI_SUCCESS)
+	if (ret != FI_SUCCESS){
+        CXIP_WARN("ret = %d, heading to zbsend_fail\n", ret);
 		zbsend_fail(zbs, req, ret);
+    }
 
 	return FI_SUCCESS;
 done:

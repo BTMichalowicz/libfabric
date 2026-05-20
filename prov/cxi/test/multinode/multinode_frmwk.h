@@ -30,7 +30,7 @@ extern const char *frmwk_jobstep;	/* FI_CXI_COLL_JOB_STEP_ID */
 extern const char *frmwk_mcast_token;	/* FI_CXI_COLL_MCAST_TOKEN */
 extern const char *frmwk_fabric_mgr_url;/* FI_CXI_COLL_FABRIC_MGR_URL */
 extern const char *frmwk_nodename;	/* SLURMD_NODENAME */
-extern const char frmwk_node0[32];	/* SLURMD_NODELIST (first name) */
+extern char frmwk_node0[32];	/* SLURMD_NODELIST (first name) */
 extern union nicaddr *frmwk_nics;	/* array of NIC addresses  */
 extern int frmwk_numnics;		/* number of NIC addresses */
 
@@ -91,5 +91,19 @@ int frmwk_log0(const char *fmt, ...)
 	__attribute__((format(__printf__, 1, 2)));
 int frmwk_log(const char *fmt, ...)
 	__attribute__((format(__printf__, 1, 2)));
+
+
+#define BEN_DEBUG 1
+#if BEN_DEBUG
+#define DBG_PRINT(fmt, args...)                                     \
+        do {                                                        \
+            fflush(stderr);                                         \
+            fprintf(stderr, "[rank_%d][%s][%s:%d] "fmt,                      \
+                    frmwk_rank, __FILE__, __func__, __LINE__, ##args);          \
+            fflush(stderr);                                         \
+        } while (0);
+#else
+#define DBG_PRINT(...)
+#endif /* BEN_DEBUG */
 
 #endif /* FRMWK_HEADER */

@@ -141,8 +141,6 @@ static void *_poll_cqs(void)
 		TRACE("  op_context    %p\n",cqd.op_context);
 		TRACE("  prov_errno    %d\n",cqd.prov_errno);
 		TRACE("  tag           %016lx\n",cqd.tag);
-
-        DBG_PRINT("returning non-NULL item %p\n", cqd.op_context);
 		return cqd.op_context;
 	}
 	if (size != -FI_EAGAIN)
@@ -253,8 +251,6 @@ int avset_ary_append(fi_addr_t *fiaddrs, size_t size,
 	}
 	// append addresses to av_set
 	for (i = 0; i < size; i++) {
-        DBG_PRINT("Inserting at index %d of %d into setp %p at addr 0x%lx\n",
-                i, size, setp, fiaddrs[i]);
 		ret = fi_av_set_insert(setp, fiaddrs[i]);
 		if (ret) {
 			TRACE("%s fi_av_set_insert failed %d\n", __func__, ret);
@@ -361,7 +357,6 @@ static int _poll_eq(void)
 		}
 		TRACE("=== EQ SUCCESS\n");
 		jctx = eqd.context;
-        DBG_PRINT("simple response: eqd.context: %p\n", jctx);
 		jctx->retval = 0;
 		jctx->prov_errno = 0;
 		return FI_SUCCESS;
@@ -389,8 +384,6 @@ static int _poll_eq(void)
 			return -FI_EINVAL;
 		}
 		jctx = eqd.context;
-
-        DBG_PRINT("2nd round (og ret was -FI_EAVAIL): eqd.context: %p\n", jctx);
 		jctx->retval = eqd.err;
 		jctx->prov_errno = eqd.prov_errno;
 		return FI_SUCCESS;
@@ -467,8 +460,6 @@ int coll_multi_join(struct avset_ary *setary, struct dlist_entry *joinlist,
 		TRACE("join %d of %d initiating\n", i, total);
 		ret = fi_join_collective(cxit_ep, FI_ADDR_NOTAVAIL,
 					 setary->avset[i], 0L, &jctx->mc, jctx);
-
-        DBG_PRINT("post-join mc: 0x%lx\n", jctx->mc);
 		/* node is not participating in this join */
 		if (ret == -FI_ECONNREFUSED) {
 			free(jctx);
@@ -480,7 +471,6 @@ int coll_multi_join(struct avset_ary *setary, struct dlist_entry *joinlist,
 			goto fail;
 		}
 		/* wait for join to complete */
-        DBG_PRINT("Starting to poll for joins to complete\n");
 		do {
 			_poll_cqs();
 			ret = _poll_eq();
@@ -605,7 +595,6 @@ uint64_t _simple_get_mc(struct dlist_entry *joinlist)
 		TRACE("Join item is NULL\n");
 		return 0;
 	}
-    DBG_PRINT("mc: 0x%lx\n", (uint64_t)jctx->mc);
 	return (uint64_t)jctx->mc;
 }
 
@@ -638,7 +627,6 @@ int _test_barrier(fi_addr_t *fiaddrs, size_t size, int count,
 		TRACE("BARRIER MC invalid\n");
 		goto quit;
 	}
-    DBG_PRINT("mc: 0x%lx\n", mc);
 	for (i = 0; i < count; i++) {
 		do {
 			usleep(rand() % 100);
@@ -890,17 +878,13 @@ int _test_broadcast_improved_chunks(fi_addr_t *fiaddrs, size_t size, int count,
 	}
 
     mc = _simple_get_mc(&joinlist);
-    DBG_PRINT("mc: 0x%lx\n", mc);
-
     if (!mc) {
         TRACE("BARRIER MC invalid\n");
         ret = -1;
         goto quit;
     }
-
-
     char *s = getenv("FI_CXI_BENCHMARK_MAX_CNT");
-    int max_cnt = s ? atoi(s) : 4;
+    int max_cnt = s ? atoi(s) : 0;
     s = getenv("FI_CXI_BENCHMARK_MAX_ITER");
     count = s ? atoi(s) : 0;
 
@@ -909,10 +893,7 @@ int _test_broadcast_improved_chunks(fi_addr_t *fiaddrs, size_t size, int count,
     int cnt = 0;
     int v = 0;
 
-    s = getenv("FI_CXI_BENCHMARK_MIN_CNT");
-    int min_cnt = s ? atoi(s): 1;
-
-    for (cnt = min_cnt; cnt <= max_cnt; cnt*=2){
+    for (cnt = 1; cnt <= max_cnt; cnt*=2){
         data = calloc(cnt, sizeof(uint64_t));
         rslt = calloc(cnt, sizeof(uint64_t));
 
@@ -983,6 +964,9 @@ int _test_broadcast_improved_chunks(fi_addr_t *fiaddrs, size_t size, int count,
         if (frmwk_rank == 0)
             fprintf(stdout, "%10ld %10.3f \n", cnt * sizeof(int64_t), elapsed/1e3/count);
 
+
+
+
         if (memcmp(rslt, data, sizeof(int64_t))) {
             for (v = 0; v < cnt; v++)
                 fprintf(stderr, "[rank_%d][%d] %016lx exp %016lx\n",frmwk_rank,
@@ -995,6 +979,8 @@ int _test_broadcast_improved_chunks(fi_addr_t *fiaddrs, size_t size, int count,
         if (rslt) free(rslt);
 
     }
+
+
 
 /*
 
@@ -1752,8 +1738,6 @@ int main(int argc, char **argv)
 			goto done;
 
 		TRACE("numranks=%2d rank=%2d fiaddr=%ld caddr=%05x\n",
-                frmwk_numranks, frmwk_rank, myaddr, mycaddr.nic);
-        DBG_PRINT("numranks=%2d rank=%2d fiaddr=%ld caddr=%05x\n",
 		      frmwk_numranks, frmwk_rank, myaddr, mycaddr.nic);
 	} while (0);
 	if (errcnt)
