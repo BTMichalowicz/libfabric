@@ -786,6 +786,7 @@ static void zbsend(struct cxip_ep_obj *ep_obj, uint32_t dstnic, uint32_t dstpid,
 	req->send.nic_addr = dstnic;
 	req->send.pid = dstpid;
 	req->send.vni = ep_obj->auth_key.vni;
+    CXIP_INFO("vni in zbsend: %d, nic_addr 0x%05x\n", req->send.vni, dstnic);
 	req->send.mb.raw = mbv;
 	req->send.mb.ctrl_le_type = CXIP_CTRL_LE_TYPE_CTRL_MSG;
 	if(ep_obj->coll.leaf_save_root_lac) {
@@ -1246,7 +1247,7 @@ static int zbdata_send_cb(struct cxip_ctrl_req *req, const union c_event *event)
 	uint64_t dat;
 	int ret;
 
-    CXIP_INFO("req: %p, event %p\n", req, event);
+    CXIP_INFO("req: %p, event %p, req->send.vni: %d, send_nic_adr 0x%05x\n", req, event, req->send.vni, req->send.nic_addr);
 
 	sim = zbunpack(req->send.mb.zb_data, &src, &dst, &grpid, &dat);
 	TRACE("ACK sim=%d %d->%d grp=%d dat=%016lx\n",
@@ -1257,13 +1258,13 @@ static int zbdata_send_cb(struct cxip_ctrl_req *req, const union c_event *event)
 
 	if (grpid > ZB_NEG_BIT) {
 		/* rejection packet sent */
-		TRACE("ACK: rejection sent\n");
+		CXIP_WARN("ACK: rejection sent\n");
 		goto done;
 	}
 	zb = zbcoll->grptbl[grpid];
 	if (!zb) {
 		/* Low-level testing, or ack is late */
-		TRACE("ACK: late arrival\n");
+		CXIP_WARN("ACK: late arrival\n");
 		goto done;
 	}
 	if (src >= zb->simcount || dst >= zb->simcount) {

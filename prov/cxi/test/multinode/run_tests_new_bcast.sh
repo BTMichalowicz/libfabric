@@ -105,6 +105,7 @@ mpirun -np $np -ppn $ppn \
     -genv FI_CXI_BENCHMARK_MIN_CNT=$min_cnt \
     -genv FI_CXI_BENCHMARK_MAX_ITER=$numiters \
     -genv FI_CXI_BENCHMARK_MAX_INFLIGHT=$inflight \
+    -genv SLINGSHOT_DEVICES=cxi0,cxi1,cxi2,cxi3 \
     -genv FI_LOG_LEVEL=info -genv CXIP_TRC_COLL_JOIN=1 -genv CXIP_TRC_COLL_DEBUG=1 -genv TRC_APPEND=1 \
     -genv PMI_NUM_HSNS=$num_hsns \
     ./test_coll -v -V -N 1 -n $numiters -t13 > $outfile 2>&1
